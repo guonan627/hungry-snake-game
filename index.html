@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>demo 9.1.2 -- js 贪食蛇</title>
+	<style>
+		*{ margin:0;padding:0; }
+		body { background: #f6f6f6;}
+		.layout{ width:670px;height:500px;margin:50px auto; }
+		.snakezone { width:450px;height:450px;border:1px solid #ccc;float:left; }
+		.snakezone table{ width:100%;height:100% ;border:1px solid #F1F1F1;}
+		.showzone{ width:180px;height:300px;float:left;margin-left:5px;border:1px solid #D9D9D9; }
+		.buttonzone { width:450px;height:46px;border:1px solid #f6f6f6;clear:both;  }
+		.buttonzone button { width:150px;height:40px;display:block;border:0;margin:5px auto 0;font-size:20px;background: #1DB82D;border-radius:6px;color:#fff;box-shadow:1px 2px  6px rgba(0,0,0,.2);cursor:pointer; }
+		.snake { background:#33FFFF }
+		.food  { background:#00B74E; }
+		.block { background:#000;}
+		.brake { background:#f00;}
+		.skate { background:blue;}
+		.smallb { width:15px;height:15px;display:inline-block; }
+		.showmes { margin:15px 10px 40px;}
+		.showmes div { margin-bottom:10px }
+		.message { font-size :16px;font-weight:bold;padding-left:10px;margin-top:30px }
+		.score { margin:40px 0 ;}
+		.score p { margin-bottom:10px;font-size:14px;margin:10px; }
+	</style>
+</head>
+<body>
+	<div class="layout">
+		<div id="snakezone" class="snakezone">
+		</div>
+		<div class="showzone showtop">
+			<div class="showmes">
+				<div><p class="smallb food"></p> 食物 </div>
+				<div><p class="smallb block"></p> 障碍物 </div>
+				<div><p class="smallb brake"></p> 刹车 </div>
+				<div><p class="smallb skate"></p> 滑板 </div>
+			</div>
+			<div class="score">
+				<p>现在得分：<span id="newscore"></span></p>
+				<p>历史最高得分：<span id="maxscore">0</span></p>
+			</div>
+			<div id= "message" class="message"></div>
+		</div>
+		<div class="buttonzone">
+			<button id="start" >开始游戏</button>
+		</div>
+	</div>
+	<script>
+		//定义全局变量
+		var width = 20,			//表格的宽度
+			height = 20,		//表格的高度
+			len,				//蛇的长度
+			getTableArr = towDimArr(height,width), 	//表格对象
+			carries, 			//食物，障碍，滑板，刹车的二维显示载体
+			direction,			//方向 左37 上38 右39 下40
+			snake,				//承载蛇的数组
+			snakeTimer,			//定时器
+			speed,				//运动速度
+			startbtn = $('start'), //开始按钮
+			brakeLists = [],	   // 刹车列表
+			skateLists = [],	   // 滑板列表
+			score = 0,				//历史最高分数
+			//内置对话
+			Say=['继续加油，你能行','嗯哼，还不错嘛','你的能量超乎我想象','前方就是星辰大海'];
+		function $(id){
+			return typeof id =='string' ? document.getElementById(id):'';
+		}
+
+		function getEleArr(ele,who){
+			who  = who || document;
+			return who.getElementsByTagName(ele);
+		}
+
+		window.onload = function(){
+			initSnakeZone();
+			document.onkeydown = addEventer;
+			startbtn.onclick = function(){
+				this.style.background = '#f00';
+				this.innerHTML = '游戏进行中';
+				trace(' ');
+				this.setAttribute('disabled','disabled');
+				cleanTable();
+				start();
+			};
+		}
+
+		//每次执行各个数据初始化
+		function start(){
+			len =3;
+			direction=39;
+			speed = 10;
+			snake = new Array();
+			carries = towDimArr(height,width);
+			addObject('food');
+			Skatewidthbrake();
+			initSnake();
+			walk();
+		}
+
+		//贪食蛇运动函数
+		function walk(){
+			if(snakeTimer) clearInterval(snakeTimer);
+			console.log(speed);
+       		 snakeTimer = setInterval(step,Math.floor(3000/speed));
+		}
+
+		function step(){
+
+			//出现的第一个坐标
+			var headX = snake[0][0];
+			var headY = snake[0][1];
+
+			//左右上下控制方向
+			switch(direction){
+				case 37: headX -=	1;	break;
+				case 39: headX +=	1;	break;
+				case 38: headY -=	1;	break;
+				case 40: headY +=	1;	break;
+			}
+
+			//遇到边界、自己、障碍物则停止,
+			if(headX < 0 || headY < 0 || headX >= width || headY >= height || carries[headY][headX] == 'snake' || carries[headY][headX] == 'block'){
+				//console.log(getText($('newscore')),score);
+				if( getText($('newscore')) > score) { trace(len-3,$('maxscore')); }
+				trace('游戏结束，请重新再来！');
+				startbtn.style.background = '#1DB82D';
+				startbtn.innerHTML = '开始游戏';
+				startbtn.removeAttribute('disabled');
+
+				for(var i =0;i<skateLists.length;i++)clearTimeout(skateLists[i]);
+				for(var j=0;j<brakeLists.length;j++)clearTimeout(brakeLists[j]);
+				clearInterval(snakeTimer);
+				return ;
+			}
+
+			//加速
+			if( len % 4 == 0 && speed < 60 && carries[headY][headX] == 'food'){
+				speed +=5;
+				walk();
+				trace('开始加速，坐好了！');
+			}
+
+            //遭遇滑板
+            if(carries[headY][headX] == 'skate'){
+            	speed +=10;
+            	trace('要开始癫狂了，你准备好了吗？');
+            	walk();
+            }
+
+            //遭遇刹车
+            if(carries[headY][headX] == 'brake'){
+            	speed = 5;
+            	trace('人生需要细细品味!');
+            	walk();
+            }
+
+            //添加障碍物
+			if( len % 6 == 0 && speed < 60 && carries[headY][headX] == 'food'){
+				addObject('block');
+				trace('障碍物来了，可要躲开。');
+			}
+
+			//对话
+			if( len-3 <=40 &&  len % 10 == 0){
+				var say = Say[len/10-1];
+				trace(say);
+			}
+
+			/*
+				蛇一直在运动，里面的数组一直增加，所有一边运动一边抛出最后一个数组
+				才能保证蛇的自身的长度
+			*/
+
+			if(carries[headY][headX] != 'food'){
+				var lastX = snake[snake.length-1][0],
+					lastY = snake[snake.length-1][1];
+				carries[lastY][lastX] = false;
+				getTableArr[lastY][lastX].className = '';
+				snake.pop();
+			}else{
+				carries[headY][headX] = false;
+				trace('吃到食物！');
+				addObject('food');
+			}
+
+			getTableArr[headY][headX].className= 'snake';
+			carries[headY][headX] = 'snake';
+
+			snake.unshift([headX,headY]);
+			len = snake.length;
+			trace(len-3,$('newscore'));
+		}
+
+		//初始化表格
+		function initSnakeZone(){
+			var table = document.createElement('table');
+			table.setAttribute('algin','center');
+			table.setAttribute('border',1);
+			table.setAttribute('rules','all');
+			var tbody = document.createElement('tbody');
+			table.appendChild(tbody);
+			for(var i=0;i<height;i++){
+				var tr = document.createElement('tr');
+				tbody.appendChild(tr);
+				getTableArr[i] = tr;
+				for(var j=0;j<width;j++){
+					var td = document.createElement('td');
+					tr.appendChild(td);
+					getTableArr[i][j] = td;
+				}
+			}
+			$('snakezone').appendChild(table);
+		}
+
+		//初始化蛇
+		function initSnake(){
+			var pointer = randomBlock(len-1,len-1,width/2);
+			for(var i=0;i<len;i++){
+
+				var x = pointer[0] -i;
+				var y = pointer[1];
+
+				snake.push([x,y]);
+				carries[y][x] = 'snake';
+			}
+			return false;
+			//console.log('initSnake',carries,x,y);
+		}
+
+		//创建色块出现的随机函数
+		function randomBlock(startX,startY,endX,endY){
+			startX = startX || 0;
+			startY = startY || 0;
+			endX   = endX	|| width;
+			endY   = endY	|| height;
+
+			var p = [],
+			x = Math.floor(Math.random()*(endX -startX)) + startX,
+			y = Math.floor(Math.random()*(endY -startY)) + startY;
+			if(carries[y][x]) return randomBlock(startX,startY,endX,endY);
+			p[0] = x;
+			p[1] = y;
+			return p;
+		}
+
+		//创建二维数组
+		function towDimArr(row,col){
+			var arr = Array(row);
+			for(var i =0;i<col;i++){
+				arr[i] = new Array(col);
+			}
+			return arr;
+		}
+
+		//绑定键盘事件
+		function addEventer(ev){
+			ev = ev || window.event;
+			direction = Math.abs(ev.keyCode - direction) !=2 && ev.keyCode > 36 && ev.keyCode < 41 ? ev.keyCode:direction; //反向无效，其他按钮无效
+			return false;
+		}
+
+		//清除表格中的所有样式
+		function cleanTable(){
+			for(var row = 0;row<height;row++){
+				for(var col = 0;col<width;col++){
+					getTableArr[row][col].className = '';
+				}
+			}
+		}
+
+		//随机增加物品
+		function addObject(str){
+			var foodarr = randomBlock(),
+			x = foodarr[0],
+			y = foodarr[1];
+
+			getTableArr[y][x].className = str;
+			carries[y][x] = str;
+		}
+		//获得信息
+		function trace(mes,obj){
+			obj =  obj || $('message');
+			obj.innerHTML = mes;
+		}
+
+		//随机增加刹车和滑板
+		function Skatewidthbrake(){
+			var num = ramdomNum(1,5);
+			for(var i=0;i <num;i++){
+				skateLists.push(setTimeout(function(){ addObject('skate') },ramdomNum(10000,20000)));
+				brakeLists.push(setTimeout(function(){ addObject('brake') },ramdomNum(25000,37000)));
+			}
+		}
+
+		//设置随机函数
+		function ramdomNum(start,end){
+			return Math.floor(Math.random()*(end-start)) + start;
+		}
+
+		//获取对象的值
+		function getText(obj){
+			return obj.innerHTML;
+		}
+	</script>
+</body>
+</html>
